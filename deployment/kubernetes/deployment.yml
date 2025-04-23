@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consyn-api
+  namespace: consyn
+  labels:
+    app: consyn-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consyn-api
+  template:
+    metadata:
+      labels:
+        app: consyn-api
+    spec:
+      containers:
+      - name: consyn-api
+        image: consyn-ai/api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: MODEL_DIR
+          value: "/app/models"
+        - name: DATA_DIR
+          value: "/app/data"
+        - name: PORT
+          value: "8000"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: MODELS_TO_PRELOAD
+          value: "verse"
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+            memory: 8Gi
+            cpu: 2
+          requests:
+            memory: 4Gi
+            cpu: 1
+        volumeMounts:
+        - name: model-storage
+          mountPath: /app/models
+        - name: data-storage
+          mountPath: /app/data
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: consyn-models-pvc
+      - name: data-storage
+        persistentVolumeClaim:
+          claimName: consyn-data-pvc
+      nodeSelector:
+        accelerator: gpu

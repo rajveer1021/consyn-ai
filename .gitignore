@@ -1,0 +1,86 @@
+# === Python Basics ===
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.egg-info/
+*.log
+
+# === Environment & Dependency Stuff ===
+.env
+.venv/
+venv/
+env/
+Pipfile.lock
+poetry.lock
+
+# === Training Checkpoints ===
+*.ckpt
+*.pt
+*.pth
+checkpoints/
+output/
+runs/
+wandb/
+tensorboard/
+
+# === Model Artifacts ===
+tokenizer.json
+special_tokens_map.json
+vocab.json
+merges.txt
+sentencepiece.bpe.model
+sentencepiece.model
+
+# === Datasets / Temp Files ===
+models/
+data/
+cache/
+tmp/
+*.csv
+*.tsv
+*.jsonl
+
+# === Inference Artifacts ===
+onnx_models/
+*.onnx
+*.bin
+*.quantized
+generated_outputs/
+
+# === OS & Editor Junk ===
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# === Docker / Build ===
+*.tar
+*.img
+*.container
+.dockerignore
+
+# === Kubernetes ===
+*.yaml~
+*.backup
+
+# === Logs ===
+*.log
+logs/
+
+# === Coverage / Testing ===
+.coverage
+htmlcov/
+coverage.xml
+pytest_cache/
+test_results/
+
+# === Deployment ===
+*.pid
+*.pid.lock
+
+# === Misc ===
+*.bak
+*.old
+*.orig

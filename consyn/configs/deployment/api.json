@@ -1,0 +1,52 @@
+{
+  "api": {
+      "host": "0.0.0.0",
+      "port": 8000,
+      "workers": 4,
+      "reload": false
+  },
+  "models": {
+      "default": "verse",
+      "enabled": ["verse", "stanza", "epic"],
+      "caching": {
+          "enabled": true,
+          "max_models": 3,
+          "eviction_policy": "lru"
+      }
+  },
+  "security": {
+      "cors": {
+          "allow_origins": ["*"],
+          "allow_methods": ["*"],
+          "allow_headers": ["*"]
+      },
+      "rate_limiting": {
+          "enabled": true,
+          "max_requests_per_minute": 100,
+          "max_concurrent_requests": 10
+      }
+  },
+  "generation_defaults": {
+      "max_tokens": 256,
+      "temperature": 0.7,
+      "top_k": 50,
+      "top_p": 0.9
+  },
+  "logging": {
+      "level": "INFO",
+      "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+      "file": {
+          "enabled": true,
+          "path": "/var/log/consyn/api.log",
+          "max_size_mb": 100,
+          "backup_count": 5
+      }
+  },
+  "monitoring": {
+      "prometheus": {
+          "enabled": true,
+          "port": 9090
+      },
+      "health_check_interval_seconds": 60
+  }
+}

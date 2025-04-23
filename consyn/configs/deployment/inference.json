@@ -1,0 +1,45 @@
+{
+  "inference_settings": {
+      "default_model": "verse",
+      "max_context_length": 2048,
+      "sampling": {
+          "default_temperature": 0.7,
+          "default_top_k": 50,
+          "default_top_p": 0.9,
+          "max_new_tokens": 256
+      }
+  },
+  "optimization": {
+      "quantization": {
+          "enabled": true,
+          "method": "dynamic",
+          "bit_width": 8
+      },
+      "kv_cache": {
+          "enabled": true,
+          "max_batch_size": 16
+      },
+      "flash_attention": {
+          "enabled": true
+      }
+  },
+  "device_allocation": {
+      "verse": {
+          "gpu_memory_gb": 4,
+          "priority": "low"
+      },
+      "stanza": {
+          "gpu_memory_gb": 16,
+          "priority": "medium"
+      },
+      "epic": {
+          "gpu_memory_gb": 32,
+          "priority": "high"
+      }
+  },
+  "fallback_strategy": {
+      "out_of_memory": "load_smaller_model",
+      "error_threshold": 3,
+      "cooldown_period_seconds": 60
+  }
+}

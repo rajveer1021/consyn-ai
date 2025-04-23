@@ -1,0 +1,25 @@
+{
+  "model_type": "epic",
+  "hidden_size": 4096,
+  "num_hidden_layers": 32,
+  "num_attention_heads": 32,
+  "intermediate_size": 16384,
+  "max_position_embeddings": 4096,
+  "vocab_size": 50257,
+  "parameters": 13000000000,
+  "context_length": 4096,
+  
+  "training": {
+      "default_lr": 2e-5,
+      "weight_decay": 0.2,
+      "batch_size": 4,
+      "gradient_accumulation_steps": 8
+  },
+  
+  "inference": {
+      "max_new_tokens": 512,
+      "temperature": 0.9,
+      "top_k": 75,
+      "top_p": 0.99
+  }
+}

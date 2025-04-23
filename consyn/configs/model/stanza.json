@@ -1,0 +1,25 @@
+{
+  "model_type": "stanza",
+  "hidden_size": 1024,
+  "num_hidden_layers": 24,
+  "num_attention_heads": 16,
+  "intermediate_size": 4096,
+  "max_position_embeddings": 2048,
+  "vocab_size": 50257,
+  "parameters": 1300000000,
+  "context_length": 2048,
+  
+  "training": {
+      "default_lr": 3e-5,
+      "weight_decay": 0.1,
+      "batch_size": 8,
+      "gradient_accumulation_steps": 4
+  },
+  
+  "inference": {
+      "max_new_tokens": 256,
+      "temperature": 0.8,
+      "top_k": 50,
+      "top_p": 0.95
+  }
+}

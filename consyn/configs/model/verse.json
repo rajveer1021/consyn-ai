@@ -1,0 +1,25 @@
+{
+  "model_type": "verse",
+  "hidden_size": 384,
+  "num_hidden_layers": 12,
+  "num_attention_heads": 6,
+  "intermediate_size": 1536,
+  "max_position_embeddings": 1024,
+  "vocab_size": 50257,
+  "parameters": 125000000,
+  "context_length": 1024,
+  
+  "training": {
+      "default_lr": 5e-5,
+      "weight_decay": 0.01,
+      "batch_size": 16,
+      "gradient_accumulation_steps": 2
+  },
+  
+  "inference": {
+      "max_new_tokens": 128,
+      "temperature": 0.7,
+      "top_k": 40,
+      "top_p": 0.9
+  }
+}
