@@ -208,7 +208,7 @@ class ConsynInferenceEngine:
         for module in self.model.modules():
             if isinstance(module, nn.Dropout):
                 module.p = 0
-                    
+                
     def generate(
         self,
         prompt: str,
@@ -224,195 +224,63 @@ class ConsynInferenceEngine:
         **kwargs
     ) -> Union[List[str], Tuple[List[str], List[List[float]]]]:
         """Generate text based on a prompt."""
-        # Ensure model is in eval mode
-        self.model.eval()
-        
-        # Make sure prompt is a string
-        if not isinstance(prompt, str):
-            prompt = str(prompt)
-        
-        # Ensure tokenizer has required tokens
-        if not hasattr(self.tokenizer, "pad_token") or self.tokenizer.pad_token is None:
-            if hasattr(self.tokenizer, "eos_token") and self.tokenizer.eos_token is not None:
-                self.tokenizer.pad_token = self.tokenizer.eos_token
-            else:
-                self.tokenizer.pad_token = "[PAD]"
-                self.tokenizer.pad_token_id = 0
-        
-        # Encode the prompt with explicit error handling
+        # Encode the prompt - with added safety checks
         try:
-            # Try standard tokenization
-            inputs = self.tokenizer(
-                prompt,
-                return_tensors="pt",
-                padding="max_length",
-                truncation=True,
-                max_length=min(self.max_length - max_new_tokens, 512)  # Leave room for generated tokens
-            )
-            input_ids = inputs["input_ids"].to(self.device)
-            attention_mask = inputs["attention_mask"].to(self.device)
-        except Exception as e:
-            logging.error(f"Tokenization error: {e}")
-            # Try manual character encoding if tokenizer fails
-            try:
-                # If tokenization fails, use character-level encoding as fallback
-                logging.warning("Using character-level encoding fallback")
-                tokens = []
-                for char in prompt:
-                    # Use a simple mapping for characters
-                    tokens.append(ord(char) % 50000)  # Mod to keep within vocab range
-                
-                # Add special tokens
-                if hasattr(self.tokenizer, "bos_token_id") and self.tokenizer.bos_token_id is not None:
-                    tokens = [self.tokenizer.bos_token_id] + tokens
-                    
-                # Convert to tensors
-                input_ids = torch.tensor([tokens], dtype=torch.long).to(self.device)
-                attention_mask = torch.ones_like(input_ids).to(self.device)
-            except Exception as fallback_error:
-                logging.error(f"Fallback tokenization also failed: {fallback_error}")
-                return [f"Error: Could not tokenize input. Original error: {e}. Fallback error: {fallback_error}"]
-        
-        # Ensure we have valid input
-        if input_ids.numel() == 0 or input_ids.size(1) == 0:
-            logging.warning("Empty input detected, using default token")
+            input_ids = self.tokenizer.encode(prompt, return_tensors="pt").to(self.device)
+        except (TypeError, AttributeError) as e:
+            # Fallback to character encoding if tokenizer fails
+            print(f"Warning: Tokenizer failed. Using character fallback. Error: {e}")
+            char_ids = [ord(c) % 50000 for c in prompt]  # Use character codes as fallback
+            # Add special tokens
             if hasattr(self.tokenizer, "bos_token_id") and self.tokenizer.bos_token_id is not None:
-                default_token = self.tokenizer.bos_token_id
-            else:
-                default_token = 1  # Use a reasonable default
-            input_ids = torch.tensor([[default_token]], dtype=torch.long).to(self.device)
-            attention_mask = torch.ones_like(input_ids).to(self.device)
+                char_ids = [self.tokenizer.bos_token_id] + char_ids
+            input_ids = torch.tensor([char_ids], dtype=torch.long).to(self.device)
         
-        # Safety check token counts
-        input_length = input_ids.size(1)
-        if input_length >= self.max_length:
-            logging.warning(f"Input length ({input_length}) exceeds max_length ({self.max_length}), truncating input")
-            input_ids = input_ids[:, :self.max_length-max_new_tokens]
-            attention_mask = attention_mask[:, :self.max_length-max_new_tokens]
-            input_length = input_ids.size(1)
+        # Ensure input_ids is at least 1 token long
+        if input_ids.size(1) == 0:
+            input_ids = torch.tensor([[1]], dtype=torch.long).to(self.device)  # Use a default token ID
         
-        # Set up generation parameters
+        # Set up generation parameters with safety checks
         try:
-            # Ensure all parameters are valid
-            temperature = max(0.1, temperature) if do_sample else 1.0
-            top_k = max(1, top_k) if do_sample else 0
-            top_p = min(max(0.0001, top_p), 1.0) if do_sample else 1.0
-            
             gen_kwargs = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-                "max_length": input_length + max_new_tokens,
+                "max_length": input_ids.shape[1] + max_new_tokens,
                 "temperature": temperature,
                 "top_k": top_k,
                 "top_p": top_p,
-                "repetition_penalty": max(1.0, repetition_penalty),
+                "repetition_penalty": repetition_penalty,
                 "do_sample": do_sample,
                 "num_return_sequences": num_return_sequences,
-                "pad_token_id": self.tokenizer.pad_token_id,
             }
             
-            # Add EOS token if available
-            if hasattr(self.tokenizer, "eos_token_id") and self.tokenizer.eos_token_id is not None:
-                gen_kwargs["eos_token_id"] = self.tokenizer.eos_token_id
+            # Convert kwargs - be careful with param names
+            gen_kwargs.update(**kwargs)
             
-            # Add stopping criteria if provided
-            if stopping_criteria:
-                gen_kwargs["stopping_criteria"] = stopping_criteria
-            
-            # Add output scores if requested
-            if output_scores:
-                gen_kwargs["output_scores"] = True
-                gen_kwargs["return_dict_in_generate"] = True
-            
-            # Update with additional kwargs
-            for key, value in kwargs.items():
-                if key not in gen_kwargs:
-                    gen_kwargs[key] = value
-            
-            # Run generation with error handling
-            with torch.no_grad():
-                try:
-                    outputs = self.model.generate(**gen_kwargs)
-                except RuntimeError as e:
-                    if "CUDA out of memory" in str(e):
-                        logging.error(f"CUDA out of memory: {e}")
-                        # Try with reduced parameters
-                        gen_kwargs["max_length"] = input_length + min(max_new_tokens, 64)
-                        gen_kwargs["num_return_sequences"] = 1
-                        gen_kwargs["do_sample"] = False
-                        outputs = self.model.generate(**gen_kwargs)
-                    else:
-                        raise
+            # Generate text with added error handling
+            outputs = self.model.generate(input_ids, **gen_kwargs)
         except Exception as e:
-            logging.error(f"Error during generation: {e}")
+            print(f"Error during generation: {e}")
             return [f"Error generating text: {str(e)}"]
         
-        # Process outputs
-        try:
-            # Handle different output formats
-            if output_scores:
-                # Extract sequences and scores
-                sequences = outputs.sequences
-                scores = outputs.scores
+        # Decode generated sequences
+        generated_sequences = []
+        
+        for seq in outputs:
+            # Remove input prompt tokens
+            generated_tokens = seq[input_ids.shape[1]:]
+            
+            try:
+                # Decode to text
+                decoded_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+                generated_sequences.append(decoded_text)
+            except Exception as e:
+                # Fallback if decoding fails
+                print(f"Error decoding tokens: {e}")
+                # Create a simple string representation of the tokens
+                fallback_text = ' '.join([str(t.item()) for t in generated_tokens])
+                generated_sequences.append(f"[Decoding Error] Token IDs: {fallback_text}")
+        
+        return generated_sequences
                 
-                # Decode sequences
-                decoded_sequences = []
-                for seq in sequences:
-                    # Extract generated part (without input)
-                    generated_tokens = seq[input_length:]
-                    
-                    # Decode to text
-                    try:
-                        decoded_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
-                        decoded_sequences.append(decoded_text)
-                    except Exception as decode_error:
-                        logging.error(f"Error decoding tokens: {decode_error}")
-                        token_str = ' '.join([str(t.item()) for t in generated_tokens])
-                        decoded_sequences.append(f"[Decoding Error] Token IDs: {token_str}")
-                
-                # Convert scores to probabilities
-                token_probs = []
-                for score_tensor in scores:
-                    # Apply softmax to get probabilities
-                    probs = torch.nn.functional.softmax(score_tensor, dim=-1)
-                    token_probs.append(probs.cpu().numpy())
-                
-                return decoded_sequences, token_probs
-            else:
-                # Standard decoding
-                generated_sequences = []
-                
-                # Handle different return formats
-                if isinstance(outputs, torch.Tensor):
-                    sequences = outputs
-                else:
-                    # For model outputs that return a dict-like object
-                    sequences = outputs.sequences if hasattr(outputs, "sequences") else outputs
-                
-                for seq in sequences:
-                    # Extract generated part (without input)
-                    if num_return_sequences > 1 and do_sample:
-                        # For multiple sequences, we might need to keep everything
-                        generated_tokens = seq
-                    else:
-                        # For single sequence, remove input tokens
-                        generated_tokens = seq[input_length:]
-                    
-                    # Decode to text
-                    try:
-                        decoded_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
-                        generated_sequences.append(decoded_text)
-                    except Exception as decode_error:
-                        logging.error(f"Error decoding tokens: {decode_error}")
-                        # Fallback to showing token IDs
-                        token_str = ' '.join([str(t.item()) for t in generated_tokens])
-                        generated_sequences.append(f"[Decoding Error] Token IDs: {token_str}")
-                
-                return generated_sequences
-        except Exception as e:
-            logging.error(f"Error processing generation outputs: {e}")
-            return [f"Error processing generated text: {str(e)}"]
-
     def generate_stream(
         self,
         prompt: str,
